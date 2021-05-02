@@ -10,6 +10,11 @@ const DB = new Database(DBPath);
 (async () => {
   if (!await DB.prepare('SELECT name FROM sqlite_master WHERE type=\'table\' AND name=\'games\'').get()) await DB.prepare("CREATE TABLE games (id TEXT)").run();
 })();
+// Handle the jobs (Wheel cron jobs)
+const { EventEmitter } = require('events');
+const cron = require('node-cron');
+const event = new EventEmitter;
+const wheels = {};
 
 
 class SimplyRoulette {
@@ -23,13 +28,16 @@ class SimplyRoulette {
     this.logging = boolCheck(options.logging) || false; // If they want logs from this module to display in the console (Includes warnings and errors)
 
     // Player data
-    this.bets = []; // Example: [{ player: 'townsy', bet: 100, space: black-31 }]
+    this.bets = []; // Example: [{ player: 'townsy', amount: 100, bet: black }]
     this.winners = [];
-    this.totalBets = [];
 
     // Class Functions
     this.setMinimumBet = this.setMinimumBet.bind(this);
     this.setMaximumBet = this.setMaximumBet.bind(this);
+    this.startGame = this.startGame.bind(this);
+    this.stopGame = this.stopGame.bind(this);
+    this.addBet = this.addBet.bind(this);
+    this.spin = this.spin.bind(this);
   }
 
   setMinimumBet(bet) {
@@ -46,9 +54,39 @@ class SimplyRoulette {
     return this;
   }
 
+  startGame() {
+    if (!wheels[this.id]) {
+      wheels[this.id] = cron.schedule('*/5 * * * * *', () => {
+        const result = this.spin();
+        event.emit('spin', {
+
+        })
+      });
+    }
+  }
+
+  stopGame() {
+    if (wheels[this.id]) {
+      wheels[this.id].stop();
+      delete wheels[this.id];
+    }
+  }
+
+  addBet(player, bet, amount) {
+    const playerBets = this.bets.filter(b => b.player === player);
+    if (playerBets < 3 && validBet(bet) && validAmount(amount)) {
+      // Add the bet
+      this.bets.push({ player, bet, amount });
+    }
+  }
+
   spin() {
     const spot = getOutcome();
-    // TODO add function here
+    for (const { player, bet, amount } of this.bets) {
+      if (spot.colour === bet || spot.number === bet) {
+        // TODO ADD BET CHECKING AND WINNINGS WITH ODDS
+      }
+    }
   }
 
 }
@@ -76,6 +114,7 @@ function boolCheck(value) {
 
 function getOutcome() {
   const spaces = [
+    { number: 0, colour: "green" },
     { number: 1, colour: "red" },
     { number: 2, colour: "black" },
     { number: 3, colour: "red" },
@@ -114,4 +153,50 @@ function getOutcome() {
     { number: 36, colour: "red" }
   ];
   return spaces[Math.floor(Math.random() * spaces.length)];
+}
+
+function betOdds(bet) {
+  /*
+    Accepted Bets:
+      black / red (Whole colours)
+      even / odd (Even/odd numbers)
+      0-36 (Single numbers)
+      1-12 / 13-24 / 25-36 (Dozens)
+      1-18 / 19-36 (High/Low end)
+   */
+  const odds = {
+    black: '1:1', // Any black
+    red: '1:1', // Any red
+    even: '1:1', // Any even number
+    odd: '1:1', // Any odd number
+    highLow: '1:1', // Any number from 1-18 or 19-36
+    dozen: '2:1', // The first dozen (1-12) second dozen (13-24) or third dozen (25-36)
+    split: '17:1', // Any two numbers from multiple bets
+    zero: '17:1', // The number 0 is winner
+    straight: '35:1', // Single number bet
+  };
+  // Figure out what bet they have
+  if (betType.number(bet)) return Number(bet) < 19 ? odds.low : odds.high;
+  if (betType.colour(bet)) return odds[bet];
+  if (betType.dozen(bet)) return odds.dozen;
+  if (betType.highLow(bet)) return odds.highLow;
+
+}
+
+function validBet(b) {
+  return (b
+    && (betType.number(b) || betType.colour(b) || betType.dozen(b) || betType.highLow(b) || betType.oddEven(b))
+  );
+}
+
+function validAmount(a, instance) {
+  return (a <= instance.maximumBet && a >= instance.minimumBet);
+}
+
+const betType = {
+  number(b) { return b.match(/^([0-9]|1[0-9]|2[0-9]|3[0-6])$/ig) },
+  dozen(b) { return b.match(/^(1-12|13-24|25-36)$/ig) },
+  highLow(b) { return b.match(/^(1-18|19-36)$/ig) },
+  oddEven(b) { return b.match(/^even|odd$/ig) },
+  colour(b) { return b.match(/^black|red$/ig) },
 }
