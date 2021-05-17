@@ -13,12 +13,12 @@ const DB = new Database(DBPath);
 // Handle the jobs (Wheel cron jobs)
 const { EventEmitter } = require('events');
 const cron = require('node-cron');
-const event = new EventEmitter;
 const wheels = {};
 
 
-class SimplyRoulette {
+class SimplyRoulette extends EventEmitter {
   constructor(options = {}) {
+    super();
     // Class Variables
     this.id = generateID(); // The ID of the game
     this.minimumBet = options.minimumBet || 1 ; // The smallest amount a player can bet
@@ -55,14 +55,10 @@ class SimplyRoulette {
   }
 
   startGame() {
-    if (!wheels[this.id]) {
-      wheels[this.id] = cron.schedule('*/5 * * * * *', () => {
-        const result = this.spin();
-        event.emit('spin', {
-
-        })
-      });
-    }
+    console.log('Starting game')
+    if (wheels[this.id]) return;
+    // TODO Get event emitter working, you cant access the .on on the game class (Research classes with event emitters)
+    wheels[this.id] = cron.schedule('*/30 * * * * *', async () => { console.log('Spinning!'); await this.spin() }, null);
   }
 
   stopGame() {
@@ -74,19 +70,25 @@ class SimplyRoulette {
 
   addBet(player, bet, amount) {
     const playerBets = this.bets.filter(b => b.player === player);
-    if (playerBets < 3 && validBet(bet) && validAmount(amount)) {
-      // Add the bet
-      this.bets.push({ player, bet, amount });
-    }
+    if (playerBets.length >= 3 || !validBet(bet) || !validAmount(amount, this)) return;
+    this.bets.push({ player, bet, amount });
+    return 'success';
   }
 
-  spin() {
-    const spot = getOutcome();
+  async spin() {
+    const spot = await getOutcome();
+    this.lastSpin = spot;
+    this.winners = [];
     for (const { player, bet, amount } of this.bets) {
       if (spot.colour === bet || spot.number === bet) {
-        // TODO ADD BET CHECKING AND WINNINGS WITH ODDS
+        const prize = parseInt(amount) * parseInt(betOdds(bet).split(':')[1]);
+        this.winners.push({ player, prize })
       }
     }
+    this.bets = [];
+    const result = { spot, wins: this.winners };
+    event.emit('spin', result);
+    return result;
   }
 
 }
