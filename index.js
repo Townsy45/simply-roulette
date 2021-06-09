@@ -55,9 +55,9 @@ class SimplyRoulette extends EventEmitter {
   }
 
   startGame() {
-    console.log('Starting game')
+    if (this.logging) console.log(`+++ Starting Auto-Game (${this.id}) +++`);
     if (wheels[this.id]) return;
-    wheels[this.id] = cron.schedule('*/30 * * * * *', async () => { console.log('Spinning!'); await this.spin() }, null);
+    wheels[this.id] = cron.schedule('* */1 * * * *', async () => await this.spin(), null);
   }
 
   stopGame() {
@@ -75,18 +75,30 @@ class SimplyRoulette extends EventEmitter {
   }
 
   async spin() {
+    const gameExists = await DB.prepare('SELECT id FROM games WHERE id = ?').get(this.id);
+    if (!gameExists) await DB.prepare('INSERT INTO games (id) VALUES (?)').run(this.id);
+    if (this.logging) console.log(`-----------------------\n(${this.id}) Spinning Wheel...`);
     const spot = await getOutcome();
     this.lastSpin = spot;
     this.winners = [];
     for (const { player, bet, amount } of this.bets) {
-      if (spot.colour === bet || spot.number === bet) {
-        const prize = parseInt(amount) * parseInt(betOdds(bet).split(':')[1]);
-        this.winners.push({ player, prize })
+      if (
+        spot.colour === bet
+        || spot.number === parseInt(bet)
+        || isDozen(spot.number, bet)
+        || isOddEven(spot.number, bet) // Is even or odd
+      ) {
+        const odds = betOdds(player, bet, spot);
+        const prize = parseInt(amount) * (odds ? parseInt(odds.split(':')[0]) : 1);
+        this.winners.push({ player, bet: `Bet ${amount} on (${bet})`, prize });
       }
     }
     this.bets = [];
     const result = { spot, wins: this.winners };
     this.emit('spin', result);
+    await DB.prepare('UPDATE games SET last_spin = ?, last_winners = ?, spin_count = spin_count + 1 WHERE id = ?')
+      .run(JSON.stringify(spot), JSON.stringify(this.winners), this.id);
+    if (this.logging) console.log(`(${this.id}) WINNERS: ${this.winners.length ? this.winners.map(w => `\n-> Player (${w.player}), ${w.bet} and won ${w.prize}`) : 'None!'}`);
     return result;
   }
 
@@ -152,11 +164,11 @@ function getOutcome() {
     { number: 34, colour: "red" },
     { number: 35, colour: "black" },
     { number: 36, colour: "red" }
-  ];
+  ].shuffle(6);
   return spaces[Math.floor(Math.random() * spaces.length)];
 }
 
-function betOdds(bet) {
+function betOdds(player, bet, spot) {
   /*
     Accepted Bets:
       black / red (Whole colours)
@@ -168,19 +180,18 @@ function betOdds(bet) {
   const odds = {
     black: '1:1', // Any black
     red: '1:1', // Any red
-    even: '1:1', // Any even number
-    odd: '1:1', // Any odd number
+    oddEven: '1:1', // Any even or odd number that matches the bet
     highLow: '1:1', // Any number from 1-18 or 19-36
     dozen: '2:1', // The first dozen (1-12) second dozen (13-24) or third dozen (25-36)
-    split: '17:1', // Any two numbers from multiple bets
     zero: '17:1', // The number 0 is winner
     straight: '35:1', // Single number bet
   };
   // Figure out what bet they have
-  if (betType.number(bet)) return Number(bet) < 19 ? odds.low : odds.high;
+  if (betType.number(bet)) return (spot.number === parseInt(bet) && spot.number < 1) ? odds.zero : odds.straight;
   if (betType.colour(bet)) return odds[bet];
   if (betType.dozen(bet)) return odds.dozen;
   if (betType.highLow(bet)) return odds.highLow;
+  if (betType.oddEven(bet)) return odds.oddEven;
 
 }
 
@@ -200,4 +211,28 @@ const betType = {
   highLow(b) { return b.match(/^(1-18|19-36)$/ig) },
   oddEven(b) { return b.match(/^even|odd$/ig) },
   colour(b) { return b.match(/^black|red$/ig) },
+}
+
+function isDozen(s, b) {
+  return betType.dozen(b) && (s >= parseInt(b.split('-')[0])) && (s <= parseInt(b.split('-')[1]));
+}
+
+function isOddEven(s, b) {
+  return betType.oddEven(b) && (b === s % 2 ? 'odd' : 'even');
+}
+
+Array.prototype.shuffle = function (times) {
+  if (typeof times !== 'number') times = 1;
+  for (let i = 0; i < times; i++) {
+    let currentIndex = this.length, randomIndex;
+    // While there remain elements to shuffle...
+    while (0 !== currentIndex) {
+      // Pick a remaining element...
+      randomIndex = Math.floor(Math.random() * currentIndex);
+      currentIndex--;
+      // And swap it with the current element.
+      [this[currentIndex], this[randomIndex]] = [this[randomIndex], this[currentIndex]];
+    }
+  }
+  return this;
 }
