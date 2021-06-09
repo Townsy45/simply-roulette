@@ -57,7 +57,6 @@ class SimplyRoulette extends EventEmitter {
   startGame() {
     console.log('Starting game')
     if (wheels[this.id]) return;
-    // TODO Get event emitter working, you cant access the .on on the game class (Research classes with event emitters)
     wheels[this.id] = cron.schedule('*/30 * * * * *', async () => { console.log('Spinning!'); await this.spin() }, null);
   }
 
@@ -87,7 +86,7 @@ class SimplyRoulette extends EventEmitter {
     }
     this.bets = [];
     const result = { spot, wins: this.winners };
-    event.emit('spin', result);
+    this.emit('spin', result);
     return result;
   }
 
