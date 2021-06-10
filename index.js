@@ -32,6 +32,7 @@ class SimplyRoulette extends EventEmitter {
     this.winners = [];
 
     // Class Functions
+    this.setNumberOfBets = this.setNumberOfBets.bind(this);
     this.setMinimumBet = this.setMinimumBet.bind(this);
     this.setMaximumBet = this.setMaximumBet.bind(this);
     this.startGame = this.startGame.bind(this);
@@ -43,24 +44,33 @@ class SimplyRoulette extends EventEmitter {
   setMinimumBet(bet) {
     // Return if not valid, not a string / number or less then 1
     if (!bet || !['string', 'number'].includes(typeof bet) || bet < 1) return this;
-    this.minimumBet = typeof bet === 'string' ? Number(bet) : bet;
+    this.minimumBet = typeof bet === 'string' && !isNaN(bet) ? Number(bet) : bet;
     return this;
   }
 
   setMaximumBet(bet) {
     // Return if not valid, not a string / number or more then 100,000,000
     if (!bet || !['string', 'number'].includes(typeof bet) || bet > 100000000) return this;
-    this.maximumBet = typeof bet === 'string' ? Number(bet) : bet;
+    this.maximumBet = typeof bet === 'string' && !isNaN(bet) ? Number(bet) : bet;
+    return this;
+  }
+
+  setNumberOfBets(amt) {
+    // Return if the amount is invalid
+    if (!amt || !['string', 'number'].includes(typeof amt) || amt === this.numberOfBets) return this;
+    this.numberOfBets = typeof amt === 'string' && !isNaN(amt) ? Number(amt) : amt;
     return this;
   }
 
   startGame() {
+    // Start the auto game
     if (this.logging) console.log(`+++ Starting Auto-Game (${this.id}) +++`);
     if (wheels[this.id]) return;
     wheels[this.id] = cron.schedule('* */1 * * * *', async () => await this.spin(), null);
   }
 
   stopGame() {
+    // Stop the game
     if (wheels[this.id]) {
       wheels[this.id].stop();
       delete wheels[this.id];
