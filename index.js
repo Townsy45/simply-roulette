@@ -44,21 +44,24 @@ class SimplyRoulette extends EventEmitter {
   setMinimumBet(bet) {
     // Return if not valid, not a string / number or less then 1
     if (!bet || !['string', 'number'].includes(typeof bet) || bet < 1) return this;
-    this.minimumBet = typeof bet === 'string' && !isNaN(bet) ? Number(bet) : bet;
+    if (typeof bet === 'string' && isNaN(bet)) return this; // Return if not a number string
+    this.minimumBet = typeof bet === 'string' ? Number(bet) : bet;
     return this;
   }
 
   setMaximumBet(bet) {
     // Return if not valid, not a string / number or more then 100,000,000
     if (!bet || !['string', 'number'].includes(typeof bet) || bet > 100000000) return this;
-    this.maximumBet = typeof bet === 'string' && !isNaN(bet) ? Number(bet) : bet;
+    if (typeof bet === 'string' && isNaN(bet)) return this; // Return if not a number string
+    this.maximumBet = typeof bet === 'string' ? Number(bet) : bet;
     return this;
   }
 
   setNumberOfBets(amt) {
     // Return if the amount is invalid
     if (!amt || !['string', 'number'].includes(typeof amt) || amt === this.numberOfBets) return this;
-    this.numberOfBets = typeof amt === 'string' && !isNaN(amt) ? Number(amt) : amt;
+    if (typeof amt === 'string' && isNaN(amt)) return this; // Return if not a number string
+    this.numberOfBets = typeof amt === 'string' ? Number(amt) : amt;
     return this;
   }
 
