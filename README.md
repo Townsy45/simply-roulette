@@ -23,6 +23,17 @@ Table.on('spin', (results) => {
 });
 ```
 
+## Valid Bets
+
+- `0` - `36` (Any single number from 0 to 36)
+- `1-12` (1-12 means any number between and including the first dozen, 1-12)
+- `13-24` (13-24 means any number between and including the second dozen, 13-24)
+- `25-36` (25-36 means any number between and including the last dozen, 25-36)
+- `black` / `red` (Bet on a colour black or red)
+- `even` / `odd` (Any even or odd number)
+- `1-18` (The first half of numbers)
+- `19-36` (The last half of numbrs)
+
 ## Handling Betting
 
 ```js
