@@ -81,6 +81,10 @@ class SimplyRoulette extends EventEmitter {
   }
 
   addBet(player, bet, amount) {
+    if (
+      bet === undefined || bet === null ||
+      amount === undefined || amount === null
+    ) return 'Unable to set with an unknown bet or amount';
     const playerBets = this.bets.filter(b => b.player === player);
     if (playerBets.length >= 3 || !validBet(bet) || !validAmount(amount, this)) return;
     this.bets.push({ player, bet, amount });
@@ -215,15 +219,18 @@ function validBet(b) {
 }
 
 function validAmount(a, instance) {
-  return (a <= instance.maximumBet && a >= instance.minimumBet);
+  return (
+    !['number', 'string'].includes(typeof a) || (typeof a === 'string' && isNaN(a))
+      ? false
+      : parseInt(a) <= instance.maximumBet && parseInt(a) >= instance.minimumBet);
 }
 
 const betType = {
-  number(b) { return b.match(/^([0-9]|1[0-9]|2[0-9]|3[0-6])$/ig) },
-  dozen(b) { return b.match(/^(1-12|13-24|25-36)$/ig) },
-  highLow(b) { return b.match(/^(1-18|19-36)$/ig) },
-  oddEven(b) { return b.match(/^even|odd$/ig) },
-  colour(b) { return b.match(/^black|red$/ig) },
+  number(b) { return RegExp('^([0-9]|1[0-9]|2[0-9]|3[0-6])$').test(b) },
+  dozen(b) { return RegExp('^(1-12|13-24|25-36)$').test(b) },
+  highLow(b) { return RegExp('^(1-18|19-36)$').test(b) },
+  oddEven(b) { return RegExp('^even|odd$').test(b) },
+  colour(b) { return RegExp('^black|red$').test(b) },
 }
 
 function isDozen(s, b) {
